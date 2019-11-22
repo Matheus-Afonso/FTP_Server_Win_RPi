@@ -19,7 +19,8 @@ class FTPClient:
     def __init__(self):
         # Variaveis gerais
         self.tamanho_pacote = 8192
-        
+        self.total_recebido = 0
+    # --- Funções de conexão e envio para o remoto ---
     def init_conn(self, ip, port):
         self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -32,9 +33,19 @@ class FTPClient:
         except socket.gaierror:
             return "[-] Endereço de IP inválido"
 
+    def enviar_comando(self, comando):
+        comando = FTPClient.split_command(comando)
+        self.enviar_pacote_json(comando)
+        if 'exit' in comando:
+            self.conn.close()
+            return "[-] Conexão encerrada\n"
+
+        return self.receber_pacote_json()
+    
+    # --- Funções de tratamento de JSON ---
     def enviar_pacote_json(self, pack):
         pack_json = json.dumps(pack)
-        self.conn.send(pack_json.encode())  # Não fazer isso se já possuir um b'' dentro da str
+        self.conn.send(pack_json.encode()) 
 
     def receber_pacote_json(self):
         pack_json = b''
@@ -43,10 +54,11 @@ class FTPClient:
                 pack_json += self.conn.recv(self.tamanho_pacote)
                 return json.loads(pack_json)   # Recebe bytes, retorna str (apenas em 3.6+)
             except ValueError:
+                self.total_recebido = len(pack_json)/1000
                 # O base64encode adiciona 33% no arquivo. Para normalizar, retirar 25% do tamanho total
-                print("\rRecebido: %d Kb" % (len(pack_json)/1000), end="")
-                
+                print("\rRecebido: %d Kb" % self.total_recebido, end="")
     
+    # --- Funções de arquivos locais ---
     def change_client_directory(self, path):
         if os.path.isdir(path):
             os.chdir(path)
@@ -58,15 +70,7 @@ class FTPClient:
         (_, dirs, arqs) = next(os.walk(path))
         return dirs, arqs
             
-    def enviar_comando(self, comando):
-        comando = FTPClient.split_command(comando)
-        self.enviar_pacote_json(comando)
-        if 'exit' in comando:
-            self.conn.close()
-            return "[-] Conexão encerrada\n"
-
-        return self.receber_pacote_json()
-
+    # --- Função de tratamento de comando ---
     @staticmethod
     def split_command(comando):
         # Split especial para que 'cd Meus Documentos' funcione
@@ -80,6 +84,8 @@ class FTPClient:
             pass
     
         return comando
+    
+    # --- Funções de escrita e leitura ---
     @staticmethod
     def read_file(path):
         if os.path.isfile(path):

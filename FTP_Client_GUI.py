@@ -38,11 +38,11 @@ class FTPGUI(FTPClient):
 
         # Segunda Linha: Entry do IP e botão de conectar
         self.campo_ip = tk.Entry(master, bd=3, width=150)
-        self.campo_ip.bind('<Return>', self.connect)
+        self.campo_ip.bind('<Return>', lambda event: self.criar_thread("conectar"))
         self.campo_ip.grid(row=1, column=0, columnspan=4, padx=3)
         
         self.botao_conn = tk.Button(master, text="Conectar", bd=3, compound='left', image=self.image_conn)
-        self.botao_conn['command'] = self.connect
+        self.botao_conn['command'] = lambda: self.criar_thread("conectar")
         self.botao_conn.grid(row=1, column=4, padx=4)
 
         #Terceira Linha: Entry com o caminho atual do RPi e botão de ir
@@ -65,11 +65,11 @@ class FTPGUI(FTPClient):
         self.list_local.grid(row=3, column=0, pady=4, padx=3, sticky='we', rowspan=3)
         
         self.botao_up = tk.Button(master, bd=3, image=self.image_up, state='disabled')
-        self.botao_up['command'] = self.upload_arquivo
+        self.botao_up['command'] = lambda: self.criar_thread("upload")
         self.botao_up.grid(row=3, column=1, sticky='w', columnspan=2)
         
         self.botao_down = tk.Button(master, bd=3, image=self.image_down, state='disabled')
-        self.botao_down['command'] = self.download_arquivo
+        self.botao_down['command'] = lambda: self.criar_thread("download")
         self.botao_down.grid(row=5, column=1, sticky='w', columnspan=2)
 
         self.list_remoto = tk.Listbox(master, bd=3, listvariable=self.pastas_remoto, width=75, height=25)
@@ -90,12 +90,14 @@ class FTPGUI(FTPClient):
         opt_menu.add_command(label = 'Limpar terminal', command = self.clear_terminal)
         
     # ---Funções para habilitar e desabilitar conexão com o remoto ---
-    def connect(self, event=None):
+    def connect(self):
         ip = self.campo_ip.get()
         if ip != '' and not ip.isspace():
             self.print_terminal("Conectando ao IP %s" % ip)
+            self.master['cursor'] = 'wait'
             resposta = self.init_conn(ip, 4444)
             self.print_terminal(resposta)
+            self.master['cursor'] = ''
 
             if '[+]' in resposta:
                 self.habilitar_transfer()
@@ -104,6 +106,8 @@ class FTPGUI(FTPClient):
                 self.update_remote_arquives()
         else:
             self.print_terminal("[-] IP '%s' inválido" % ip)
+        
+        self.flag_thread = False
             
     def habilitar_transfer(self):
         self.campo_path['state'] = 'normal'
@@ -196,19 +200,46 @@ class FTPGUI(FTPClient):
     def download_arquivo(self):
         arq_remote = self.list_remoto.get('active')
         if not arq_remote.startswith('--') and arq_remote != '..':
+            self.print_terminal("[*] Download em progresso...")
+            self.estado_carregar(True)
+
             result = self.enviar_comando('download %s' % arq_remote)
             result = FTPClient.save_file(result, arq_remote)
+            
             self.print_terminal(result)
             self.update_local_archives()
+            self.estado_carregar(False)
+        
+        self.flag_thread = False
 
     def upload_arquivo(self):
         arq_local = self.list_local.get('active')
         if not arq_local.startswith('--') and arq_local != '..':
+            self.print_terminal("[*] Upload em progresso...")
+            self.estado_carregar(True)
+
             data_local = FTPClient.read_file(arq_local)
             result = self.enviar_comando(['upload', arq_local, data_local])
+            
             self.print_terminal(result)
             self.update_remote_arquives()
+            self.estado_carregar(False)
+        
+        self.flag_thread = False
     
+    # ---Função de threading ---
+    def criar_thread(self, modo, event=None):
+        if self.flag_thread == False:
+            self.flag_thread = True
+
+            if modo == "download":
+                proc = threading.Thread(target=self.download_arquivo)
+            elif modo == "upload":
+                proc = threading.Thread(target=self.upload_arquivo)
+            elif modo == "conectar":
+                proc = threading.Thread(target=self.connect)
+            proc.start()
+
     # ---Funções de terminal ---
     def print_terminal(self, msg):
         self.terminal['state'] = 'normal'
@@ -222,6 +253,19 @@ class FTPGUI(FTPClient):
         self.terminal.delete(1.0, 'end')
         self.terminal['state'] = 'disabled'
     
+    # --- Função para desabilitar funções no carregamento ---
+    def estado_carregar(self, modo):
+        if modo == True:
+            self.master['cursor'] = 'wait'
+            self.campo_path['state'] = 'disabled'
+            self.list_local['state'] = 'disabled'
+            self.list_remoto['state'] = 'disabled'
+        else:
+            self.master['cursor'] = ''
+            self.campo_path['state'] = 'normal'
+            self.list_local['state'] = 'normal'
+            self.list_remoto['state'] = 'normal'             
+
     def start_GUI(self):
         self.master.mainloop()
 
