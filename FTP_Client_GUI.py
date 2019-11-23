@@ -22,7 +22,7 @@ class FTPGUI(FTPClient):
         #Condições iniciais
         self.master = master
         self.flag_thread = False
-        master.title("Servidor FTP - V0.1")
+        master.title("Servidor FTP - V0.1.2")
         master.resizable(0, 0)
 
         self.image_down = tk.PhotoImage(file='icons\\download.png')
@@ -168,7 +168,7 @@ class FTPGUI(FTPClient):
             self.update_path()
 
     def mudar_pasta_remote(self, path):
-        resposta = self.enviar_comando('cd ' + path)
+        resposta = self.enviar_comando(['cd', path])
         if '[+]' in resposta:
             self.update_remote_arquives()
         else:
@@ -203,7 +203,7 @@ class FTPGUI(FTPClient):
             self.print_terminal("[*] Download em progresso...")
             self.estado_carregar(True)
 
-            result = self.enviar_comando('download %s' % arq_remote)
+            result = self.enviar_comando(['download', arq_remote])
             result = FTPClient.save_file(result, arq_remote)
             
             self.print_terminal(result)
@@ -260,14 +260,19 @@ class FTPGUI(FTPClient):
             self.campo_path['state'] = 'disabled'
             self.list_local['state'] = 'disabled'
             self.list_remoto['state'] = 'disabled'
+            self.list_local.unbind('<Double-Button-1>')
+            self.list_remoto.unbind('<Double-Button-1>')
         else:
             self.master['cursor'] = ''
             self.campo_path['state'] = 'normal'
             self.list_local['state'] = 'normal'
-            self.list_remoto['state'] = 'normal'             
+            self.list_remoto['state'] = 'normal'
+            self.list_local.bind('<Double-Button-1>', self.click_pasta_local)  
+            self.list_remoto.bind('<Double-Button-1>', self.click_pasta_remote)           
 
     def start_GUI(self):
         self.master.mainloop()
+
 
 if __name__ == '__main__':
     import logging

@@ -67,18 +67,18 @@ class FTPClient:
             return "[-] Diretorio '%s' invalido" % path
     
     def list_client_directory(self, path="."):
-        (_, dirs, arqs) = next(os.walk(path))
+        try:
+            (_, dirs, arqs) = next(os.walk(path))
+        except StopIteration:
+            dirs = []
+            arqs = []
         return dirs, arqs
             
     # --- Função de tratamento de comando ---
     @staticmethod
     def split_command(comando):
-        # Split especial para que 'cd Meus Documentos' funcione
         try:
             comando = comando.split(' ')
-            if len(comando) > 2:
-                path = ' '.join(comando[1:])
-                comando = [comando[0], path]
         except AttributeError:
             # Já é uma lista
             pass
